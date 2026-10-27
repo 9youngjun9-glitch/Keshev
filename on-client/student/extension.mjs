@@ -371,6 +371,102 @@ export function createStudentView() {
     },
 
     renderVulnerabilities() { return '학생 구현 대기: 정확한 설치 버전·OSV 출처·조회 시각·부분 결과·조회 실패를 구분하세요.'; },
-    renderAction() { return '학생 구현 대기: 현재 사건·조치·실제 대상·사람 확인·ACK와 원천 효과·unknown을 구분하세요.'; },
+
+    renderAction({ status, event, actionId, target, receipt, observation, message, confirmationExpiresAt, error } = {}) {
+      const root = section();
+      const showValue = (label, value) => {
+        if (value === undefined || value === null || value === '') return;
+        if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return;
+        make('p', `${label}: ${value}`, root);
+      };
+      const scalarId = (value) =>
+        (typeof value === 'string' && value.length > 0) || typeof value === 'number'
+          ? String(value)
+          : null;
+      const eventId = scalarId(event?.id);
+      const currentActionId = scalarId(actionId);
+      const requestId = scalarId(receipt?.requestId);
+      const receiptId = scalarId(receipt?.receiptId);
+      const suppliedEventId = scalarId(receipt?.eventId);
+      const suppliedActionId = scalarId(receipt?.actionId);
+      const intentMismatch = (suppliedEventId !== null && eventId !== null && suppliedEventId !== eventId)
+        || (suppliedActionId !== null && currentActionId !== null && suppliedActionId !== currentActionId);
+      const effectConfirmed = status === 'succeeded' && observation?.effectApplied === true && !intentMismatch;
+      const effectiveStatus = status === 'succeeded' && !effectConfirmed ? 'unknown' : status;
+
+      showValue('사건 ID', eventId);
+      const evidenceIds = Array.isArray(event?.evidence)
+        ? event.evidence.map((item) => scalarId(item?.id)).filter((id) => id !== null)
+        : [];
+      if (evidenceIds.length) showValue('근거 ID', evidenceIds.join(', '));
+      showValue('조치 ID', actionId);
+      showValue('대상 ID', target?.id);
+      showValue('대상 세대', target?.generation);
+      showValue('요청 ID', requestId);
+      showValue('접수 ID', receiptId);
+      showValue('영수증 버전', receipt?.version);
+
+      if (effectConfirmed && eventId !== null) {
+        root.setAttribute('data-student-action-event', eventId);
+        if (requestId !== null) root.setAttribute('data-student-action-request', requestId);
+      }
+
+      const statusLabels = {
+        idle: '아직 미실행(idle)',
+        loading: '준비 또는 결과 조회 중(loading)',
+        prepared: '준비됨·미실행(prepared)',
+        executing: '서버에 전달 중(executing)',
+        pending: '서버 접수·처리 중(pending)',
+        succeeded: '효과 확인(succeeded)',
+        denied: '거절(denied)',
+        failed: '실패(failed)',
+        unknown: '결과 불명(unknown)',
+        expired: '확인 기한 지남(expired)',
+        error: '요청 처리 안 됨(error)',
+      };
+      make('h3', statusLabels[effectiveStatus] || `확인 불가(${String(status ?? 'unknown')})`, root);
+
+      if (effectiveStatus === 'idle') {
+        make('p', '조치는 아직 미실행입니다. 현재 기록에서 지원되는 조치가 없으면 조치 준비 버튼이 나오지 않는 것이 정상입니다.', root);
+      } else if (effectiveStatus === 'loading') {
+        make('p', '조치 준비 또는 연동 시스템 결과 조회 중입니다. 처리 결과와 효과는 아직 확인되지 않았습니다.', root);
+      } else if (effectiveStatus === 'prepared') {
+        make('p', '조치가 준비되었지만 아직 서버에 전달되지 않았고 실행되지 않았습니다.', root);
+        showValue('확인 기한', confirmationExpiresAt);
+        make('p', '계속하려면 제공 화면에서 실제 대상과 조치를 확인하세요. 이 화면은 조치를 실행하지 않습니다.', root);
+      } else if (effectiveStatus === 'executing') {
+        make('p', '서버에 전달 중입니다. 처리 결과와 효과는 아직 확인되지 않았으며 완료 또는 성공을 뜻하지 않습니다.', root);
+      } else if (effectiveStatus === 'pending') {
+        make('p', '서버가 요청을 접수해 처리 중입니다. 접수(ACK)는 효과 확인이 아닙니다.', root);
+        make('p', '처리 결과는 아직 확인되지 않았습니다. 제공 화면에서 연동 시스템 결과를 조회하세요.', root);
+      } else if (effectiveStatus === 'succeeded' && effectConfirmed) {
+        make('p', '연동 시스템에서 효과를 확인했습니다(effectApplied: true).', root);
+        showValue('관측 시각', observation.observedAt);
+      } else if (effectiveStatus === 'unknown') {
+        if (status === 'succeeded' && intentMismatch) {
+          make('p', '현재 사건 또는 조치와 서버 영수증의 식별자가 일치하지 않아 효과를 확인할 수 없습니다. 제공 화면에서 결과를 다시 조회하세요.', root);
+        } else if (status === 'succeeded') {
+          make('p', 'succeeded 상태이지만 observation.effectApplied가 true가 아니므로 효과 확인으로 표시할 수 없습니다.', root);
+        } else {
+          make('p', '효과가 없다고도 성공했다고도 판단할 수 없습니다. 제공 화면에서 연동 시스템 결과만 재조회하세요.', root);
+        }
+      } else if (effectiveStatus === 'denied' || effectiveStatus === 'failed') {
+        const safe = safeError({ code: effectiveStatus, message });
+        make('p', effectiveStatus === 'denied' ? '연동 시스템에서 조치 요청을 거절했습니다.' : '연동 시스템에서 조치 처리가 실패했습니다.', root);
+        make('p', `메시지: ${safe.message}`, root);
+      } else if (effectiveStatus === 'expired') {
+        make('p', '확인 기한이 지났습니다. 제공 화면에서 조치를 다시 준비하세요.', root);
+      } else if (effectiveStatus === 'error') {
+        const safe = safeError(error);
+        make('p', `요청이 처리되지 않았습니다 (${safe.code}): ${safe.message}`, root);
+      } else {
+        make('p', '조치 상태를 확인할 수 없습니다. 제공 화면에서 연동 시스템 결과만 재조회하세요.', root);
+      }
+
+      if (effectiveStatus === 'unknown' || effectiveStatus === 'pending' || effectiveStatus === 'executing') {
+        make('p', '조치 화면 취소는 이미 서버에 전달된 조치 효과를 되돌리지 않습니다.', root);
+      }
+      return root;
+    },
   };
 }
