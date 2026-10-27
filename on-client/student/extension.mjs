@@ -212,7 +212,7 @@ export function createStudentView() {
         if (/PREPAR|NOT_READY|AUTHORIZATION_PENDING|PERMISSION_PENDING|UNVERIFIED/.test(c)) guidance = '권한 준비 중 또는 확인 불가입니다. 담당자에게 계정 연결과 앱 권한을 확인해 달라고 요청하세요.';
         else if (/AUTH|UNAUTH|CREDENTIAL|LOGIN/.test(c)) guidance = '인증 실패입니다. 계정 연결을 다시 확인하고 담당자에게 확인을 요청하세요.';
         else if (/FORBIDDEN|ACCESS_DENIED|ACCESS_RESTRICTED|PERMISSION/.test(c)) guidance = '접근이 제한되었습니다. 계정 연결을 다시 확인하고 담당자에게 권한 확인을 요청하세요.';
-        else if (/QUOTA|LIMIT|USAGE|RATE/.test(c)) guidance = '사용량 또는 이용 한도에 도달했습니다. 담당자에게 확인을 요청하세요.';
+        else if (/WB_CLCO_COHORT_BUDGET_EXHAUSTED|QUOTA|LIMIT|USAGE|RATE/.test(c)) guidance = '사용량 또는 이용 한도에 도달했습니다. 담당자에게 확인을 요청하세요.';
         else if (/SCHEDULE|OUTSIDE_HOURS|NOT_IN_HOURS/.test(c)) guidance = '현재 이용 시간이 아닙니다. 이용 가능 시간을 확인하세요.';
         else if (/TIME.?OUT|NETWORK|TEMPORARY|UNAVAILABLE|TOO_MANY_REQUESTS/.test(c)) guidance = '요청 제한·시간 초과 또는 네트워크 오류일 수 있습니다. 잠시 뒤 직접 다시 점검하세요.';
         else if (/CANCEL/.test(c)) guidance = '점검이 취소되었습니다. 이전 결과는 현재 점검 결과가 아닙니다.';
